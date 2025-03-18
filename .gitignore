@@ -1,0 +1,13 @@
+# Termal klasörünü ve içindekileri yok say
+Termal/
+
+# Python önbellek dosyaları
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyCharm IDE dosyaları
+.idea/
+*.iml
+*.iws
+.idea_modules/
