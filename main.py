@@ -9,41 +9,51 @@ from PIL import Image
 import numpy as np
 
 
-# Veri kümesini yükleme sınıfı
 class ThermalDataset(Dataset):
-    def __init__(self, root, transform=None):
+    def __init__(self, root, transform=None, augmentations_per_image=5):
         self.root = root
         self.transform = transform
+        self.augmentations_per_image = augmentations_per_image
         self.images = [os.path.join(root, f) for f in os.listdir(root) if f.endswith('.jpg')]
 
     def __len__(self):
-        return len(self.images)
+        return len(self.images) * self.augmentations_per_image
 
     def __getitem__(self, idx):
-        img = Image.open(self.images[idx]).convert("RGB")
+        img_path = self.images[idx // self.augmentations_per_image]
+        img = Image.open(img_path).convert("RGB")
         if self.transform:
             img = self.transform(img)
         return img
 
 
+
 # Ağ mimarileri
 class Generator(nn.Module):
-    def __init__(self, nz, ngf, nc):
+    def __init__(self, nz= 100, ngf=64, nc=3):
         super(Generator, self).__init__()
         self.model = nn.Sequential(
-            nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=False),
+            nn.ConvTranspose2d(nz, ngf * 16, 4, 1, 0, bias=False),   # 4x4
+            nn.BatchNorm2d(ngf * 16),
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(ngf * 16, ngf * 8, 4, 2, 1, bias=False),  # 8x8
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(True),
-            nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+
+            nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),  # 16x16
             nn.BatchNorm2d(ngf * 4),
             nn.ReLU(True),
-            nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+
+            nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),  # 32x32
             nn.BatchNorm2d(ngf * 2),
             nn.ReLU(True),
-            nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
+
+            nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),      # 64x64
             nn.BatchNorm2d(ngf),
             nn.ReLU(True),
-            nn.ConvTranspose2d(ngf, nc, 4, 2, 1, bias=False),
+
+            nn.ConvTranspose2d(ngf, nc, 4, 2, 1, bias=False),           # 128x128
             nn.Tanh()
         )
 
@@ -55,19 +65,26 @@ class Discriminator(nn.Module):
     def __init__(self, nc, ndf):
         super(Discriminator, self).__init__()
         self.model = nn.Sequential(
-            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),           # 64x64
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),      # 32x32
             nn.BatchNorm2d(ndf * 2),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+
+            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),  # 16x16
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+
+            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),  # 8x8
             nn.BatchNorm2d(ndf * 8),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
 
+            nn.Conv2d(ndf * 8, ndf * 16, 4, 2, 1, bias=False), # 4x4
+            nn.BatchNorm2d(ndf * 16),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(ndf * 16, 1, 4, 1, 0, bias=False),       # 1x1
         )
 
     def forward(self, input):
@@ -76,22 +93,29 @@ class Discriminator(nn.Module):
 
 # Parametreler
 nz = 100  # Latent vektör boyutu
-ngf = 64  # Generator filtre boyutu
-ndf = 64  # Discriminator filtre boyutu
+ngf = 128  # Generator filtre boyutu (128 olarak değiştirildi)
+ndf = 128  # Discriminator filtre boyutu (128 olarak değiştirildi)
 nc = 3  # RGB görüntüler için kanal sayısı
-batch_size = 64
+batch_size = 8
 epochs = 100
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Dönüşümler ve veri yükleyici
 transform = transforms.Compose([
-    transforms.Resize((64, 64)),
+    transforms.Resize((128, 128)),
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomRotation(10),  # ±10 derece döndürme
+    transforms.RandomResizedCrop(128, scale=(0.9, 1.1)),
+    transforms.ColorJitter(brightness=0.1, contrast=0.1),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
+
+
 dataset = ThermalDataset("Termal", transform=transform)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
+print(f"dataset have image count: {len(dataset)}")
 # Model oluşturma
 generator = Generator(nz, ngf, nc).to(device)
 discriminator = Discriminator(nc, ndf).to(device)
@@ -104,6 +128,8 @@ d_optimizer = optim.Adam(discriminator.parameters(), lr=0.0002, betas=(0.5, 0.9)
 
 # Eğitim döngüsü
 for epoch in range(epochs):
+    generator.train() # Modeli eğitim moduna al
+    discriminator.train() # Modeli eğitim moduna al
     for i, data in enumerate(dataloader):
         real_images = data.to(device)
         batch_size = real_images.size(0)
@@ -123,7 +149,7 @@ for epoch in range(epochs):
         output = discriminator(fake_images.detach()).view(-1, 1)
         loss_fake = d_criterion(output, fake_labels)
         loss_fake.backward()
-        torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 1.0)  # Ağırlık kırpma
+        # torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 1.0)  # Ağırlık kırpma gereksiz görüldü 
         d_optimizer.step()
 
         # Generator için eğitim
