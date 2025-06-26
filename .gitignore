@@ -1,1 +1,58 @@
 Termal/
+# ----------------------------------------
+# Dataset klasörleri
+# ----------------------------------------
+termal/
+*.csv
+*.tsv
+*.json
+*.zip
+*.rar
+*.7z
+
+# Görüntü dosyaları
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+*.gif
+
+# ----------------------------------------
+# Eğitilmiş model dosyaları
+# ----------------------------------------
+*.pt
+*.pth
+*.h5
+*.ckpt
+*.joblib
+*.pkl
+*.sav
+
+# ----------------------------------------
+# Çıktı ve log dosyaları
+# ----------------------------------------
+output/
+outputs/
+results/
+runs/
+images/
+generated/
+checkpoints/
+logs/
+events.out.tfevents.*
+
+# ----------------------------------------
+# Geçici dosyalar ve IDE dosyaları
+# ----------------------------------------
+*.log
+*.out
+*.tmp
+*.swp
+*.bak
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+.vscode/
+.idea/
+*.code-workspace
